@@ -72,9 +72,9 @@ class Body:
 		"""
 		creates an orbit around this object
 
-		see the documentation for the Orbit() constructor for valid parameters
+		see Orbit.__init__
 		"""
-		body = self
-		del self
-		kw.update(locals())
+		kw["body"] = self
+		kw["hp"] = hp
+		kw["ha"] = ha
 		Orbit(**kw)

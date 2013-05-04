@@ -15,6 +15,10 @@ def diststr(dist):
 	"""
 	if dist < 0:
 		return "-" + diststr(-dist)
+	elif dist == float("NaN"):
+		return "NaN"
+	elif dist == inf:
+		return "inf"
 	if dist < 1:
 		return "%.4fm"  % (dist / 1)
 	elif dist < 100:
