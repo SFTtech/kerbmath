@@ -1,19 +1,127 @@
 from math import *
+import itertools
 inf = float("+inf")
 nan = float("NaN")
 
+class Container:
+	"""
+	provides convenient access to a dict
+	"""
+	def __init__(self, d, delonget = False, dbg = True):
+		"""
+		d
+			value dict
+		delonget
+			auto-delete values when they are queried
+		dbg
+			display debug messages for each access
+		"""
+		self._dbg = dbg
+		self._vals = d
+		self._delonget = delonget
+
+	def __getattr__(self, name):
+		"""
+		return a val, or raise AttributeError if it does not exist
+		if delonget is True, delete the val
+
+		name
+			value name
+		returns
+			value
+		"""
+		if name in self._vals:
+			result = self._vals[name]
+			if self._delonget:
+				del self._vals[name]
+			if self._dbg:
+				print("getattr(" + name + "): " + str(result))
+			return result
+		else:
+			if self._dbg:
+				print("getattr(" + name + "): FAIL")
+			raise AttributeError("No such value: " + name)
+
+	def __delattr__(self, name):
+		"""
+		delete a val
+
+		name
+			value name
+		"""
+		self._vals.remove(name)
+
+	def __setattr__(self, name, val):
+		"""
+		set a new/overwrite an existing val
+
+		name
+			value name
+		val
+			value
+		"""
+		if name[0] == '_':
+			self.__dict__[name] = val
+		else:
+			self._vals[name] = val
+		if self._dbg:
+			print("setattr(" + name + ", " + str(val) + ")")
+
+	def __len__(self):
+		"""
+		get the number of vals
+		"""
+		return len(self._vals)
+
+	def vallist(self, *names):
+		"""
+		get the names of values
+
+		*names
+			if any are passed, they are filtered
+			if none are passed, all val names are returned
+
+		returns
+			list of val names
+		"""
+		if len(names) == 0:
+			return [name for name in self._vals]
+		else:
+			return [name for name in names if name in self._vals]
+
 def colprint(msg, col):
 	"""
-	msg           any string (or even non-string)
-	col           the ANSI color code, excluding the starting \\e[ and the finalizing m
-		      in the simplest case, an integer such as 32 for green.
+	print colored text
+
+	msg
+		any string (or even non-string)
+	col
+		the ANSI color code
+		in the simplest case, an integer such as 32 for green
 	"""
 	print("\x1b[" + str(col) + "m" + str(msg) + "\x1b[m")
 
+def liststr(l):
+	"""
+	convert a list to a string
+	"""
+	if len(l) == 0:
+		return ""
+
+	result = ""
+	for e in l:
+		result += str(e) + ", "
+
+	return result[-2:]
+
 def diststr(dist):
 	"""
-	dist          distance (m)
-	returns       an appropriate string. in a wide range, km will be used as unit 
+	convert a distance to a string
+
+	dist
+		distance (m)
+	returns
+		the string
 	"""
 	if dist < 0:
 		return "-" + diststr(-dist)
@@ -40,8 +148,12 @@ def diststr(dist):
 
 def velstr(vel):
 	"""
-	vel          velocity (m/s)
-	returns      appropriate string.
+	convert a velocity to a string
+
+	vel
+		velocity (m/s)
+	returns
+		the string
 	"""
 	if vel < 0:
 		return "-" + velstr(-vel)
@@ -62,10 +174,12 @@ def velstr(vel):
 
 def interact(globs, banner = None):
 	"""
-	launch a interactive python console
+	launch an interactive python console
 
-	globs        the global variable dict
-	
+	globs
+		the global variable dict
+	banner
+		the banner string that is printed
 	"""
 
 	#try to read the user's .pyrc file

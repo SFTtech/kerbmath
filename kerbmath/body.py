@@ -13,12 +13,18 @@ class Body:
 
 	def __init__(self, name, mass, radius, maxelev = 0, rotperiod = inf, atm = None):
 		"""
-		name            Name (will also be used as variable name)
-		mass            Mass (kg)
-		radius          Radius (m)
-		maxelev         Highest elevation over surface (m)
-		rotperiod	Siderial rotation period (s)
-		atm             Atmosphere (Atmosphere object)
+		name
+			Name (will also be used as variable name)
+		mass
+			Mass (kg)
+		radius
+			Radius (m)
+		maxelev
+			Highest elevation over surface (m)
+		rotperiod
+			Siderial rotation period (s)
+		atm
+			Atmosphere (Atmosphere object)
 		"""
 		if self.system == None:
 			raise Exception("Can not instantiate systemless body")
@@ -45,34 +51,41 @@ class Body:
 
 	def mu(self):
 		"""
-		returns         µ = GM
+		returns
+			µ = GM
 		"""
 		return G * self.mass
 
 	def accel(self, r):
 		"""
-		h               height over surface (m)
-		returns         acceleration (m/s^2)
+		h
+			height over surface (m)
+		returns
+			gravitational acceleration (m/s^2)
 		"""
 		return self.mu()/(r * r)
 
 	def minorbitr(self):
 		"""
-		returns         radius of the lowest stable orbit (outside atmosphere and above the highest elevation)
+		returns
+			radius of the lowest stable orbit (outside atmosphere and above the highest elevation)
 		"""
 		return self.radius + max(self.atm.cutoff, self.maxelev)
 
 	def minorbit(self, incl = 0, omega = 0):
 		"""
-		creates the lowest stable orbit
+		create the lowest stable orbit
 		"""
 		self.orb(ra = self.minorbitr(), rp = self.minorbitr(), name = "min" + self.name, incl = incl, omega = omega)
 
 	def rotvvector(self, rvector):
 		"""
-		returns the velocity vector of rotation at a certain position
-		rvector       position vector in IRF
-		returns       velocity vector in IRF
+		calculate the velocity vector of rotation at a certain position (= air speed in IRF)
+
+		rvector
+			position vector (IRF)
+		returns
+			velocity vector (IRF)
 
 		x and y span the equatorial plane (arbitrary orientation)
 		z is the axis of rotation
@@ -99,13 +112,12 @@ class Body:
 		vy *= vrot / req
 
 		return vx, vy, vz
-		
 
 	def orb(self, hp = None, ha = None, **kw):
 		"""
-		creates an orbit around this object
+		create an orbit around this object
 
-		see Orbit.__init__
+		see the Orbit.__init__ documentation
 		"""
 		kw["body"] = self
 		kw["hp"] = hp

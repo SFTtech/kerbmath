@@ -7,10 +7,14 @@ class System:
 	"""
 	def __init__(self, globalorbits = True, printorbits = True, globalbodies = True, printbodies = True):
 		"""
-		globalorbits  orbits are not only added to the orbits dict, but to the system itself
-		printorbits   orbits are printed when added
-		globalbodies  bodies are not only added to the bodies dict, but to the system itself
-		printbodies   bodies are printed when added
+		globalorbits
+			orbits are not only added to the orbits dict, but to the system itself
+		printorbits
+			orbits are printed when added
+		globalbodies
+			bodies are not only added to the bodies dict, but to the system itself
+		printbodies
+			bodies are printed when added
 		"""
 		orbits = {}
 		bodies = {}
@@ -30,7 +34,8 @@ class System:
 		"""
 		finds a free name for an orbit
 
-		prefix    prefix for the name
+		prefix
+			prefix for the name
 		"""
 		idx = 0
 		while True:
@@ -45,7 +50,8 @@ class System:
 		"""
 		add a body to the system
 
-		body      the body
+		body
+			the body
 		"""
 		self.bodies[body.name] = body
 		if self.globalbodies:
@@ -59,8 +65,10 @@ class System:
 		add an orbit to the system
 		automatically chooses a free name
 
-		orb       the orbit
-		prefix    a prefix for the auto-generated name
+		orb
+			the orbit
+		prefix
+			a prefix for the auto-generated name
 		"""
 		if orb.name != None:
 			if orb.name in self.orbits:
@@ -79,7 +87,8 @@ class System:
 		"""
 		(re-)read the system configuration file
 
-		conffile:   the configuration file path
+		conffile
+			the configuration file path
 		"""
 		exec(open(conffile).read(), self.__dict__)
 
@@ -87,7 +96,8 @@ class System:
 		"""
 		delete orbits
 
-		filterfun:  orbits are deleted if filterfun(orb) returns True
+		filterfun
+			orbits are deleted if filterfun(orb) returns True
 		"""
 		for name in self.orbits:
 			if filterfun == None or filterfun(self.orbits[name]):

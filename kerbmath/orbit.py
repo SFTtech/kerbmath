@@ -2,159 +2,292 @@ from math import *
 from kerbmath.util import *
 import kerbmath.vector as vec
 
+#TODO some formulae fail for circular orbits (e == 0); for example stuff related to theta
+
 class Orbit:
-	def __init__(self, body, hp = None, ha = None, incl = 0, omega = 0, ra = None, rp = None, a = None, e = None, vr = None, vh = None, vinf = None, name = None):
+	def __init__(self, body, **kw):
 		"""
-		body            central body of the orbit
-		hp              height of periapsis above surface (km)
-		ha              height of apoapsis above surface (km)
-		incl            inclination: angle between orbital plane and equatorial plane of body (deg)
-		omega           argument of perigee: angle between perigee and ascending node (deg)
-		ra              radius of apoapsis (m)
-		rp              radius of periapsis (m)
-		a               semi-major axis (m)
-		e               eccentricity
-		vr              velocity (m/s) at height above center of mass (m): tuple
-		vh		velocity (m/s) at height above surface (km): tuple
-		vinf            velocity at infinity (m/s, for escape orbits)
-		name		an orbit name
+		body
+			central body of the orbit
+		name
+			defaults to a free name such as 'orb0'
 
-		incl and omega may always be specified 
-		almost any two of rp/hp, ra/ha, a, e, vinf may be specified (unimplemented combinations will raise exceptions)
-		alternatively to vinf, vr or vh may be specified
+		> arguments that describe the orientation of the orbit
+		> these may always be specified and are independent of the others
+		> if not specified, they default to 0
+
+		incl
+			inclination (deg)
+			angle between orbital plane and equatorial plane of body
+		omega
+			argument of periapsis (deg)
+			angle between perigee and ascending node
+
+		> arguments that describe the dimensions of the orbit
+		> there are several groups of parameters
+		> (such as: parameters that directly describe periapsis height)
+		> from each group, only one may be specified
+		> paraeters from exactly two groups must be specified to allow calculation
+		> for some combinations, calcuation may be not implemented
+
+		> periapsis height
+
+		rp
+			height of periapsis above center of mass (m)
+		hp
+			height of periapsis above surface (km)
+
+		> apoapsis height
+
+		ra
+			height of apoapsis above center of mass (m)
+		ha
+			height of apoapsis above surface (km)
+
+		> semi-major axis
+		a
+			semi-major axis (m)
+		vr
+			velocity at a certain height above center of mass (tuple of m/s, m)
+		vh
+			velocity at a certain height above surface (tuple of m/s, km)
+		vinf
+			velocity at infinity (m/s, may be negative for elliptical orbits)
+		T
+			orbital period (s)
+		espec
+			specific energy (J/kg)
+
+		> eccentricity
+		e
+			eccentricity
+
+		> periapsis velocity
+		vp
+			periapsis velocity (m/s)
+
+		> apoapsis velocity
+		va
+			apoapsis velocity (m/s)
 		"""
-		#set body and
+
+		#set body
 		self.body = body
-		self.name = name
-		#take over incl and omega
-		self.incl = incl
-		self.omega = omega
 
-		#normalize and check the hp/ha/rp/ra parameters
-		if hp != None and rp != None:
-			raise Exception("hp and rp are mutually exclusive")
-		if ha != None and ra != None:
-			raise Exception("ha and ra are mutually exclusive")
-		if ha != None:
-			ra = ha * 1000 + body.radius
-		if hp != None:
-			rp = hp * 1000 + body.radius
-		del ha
-		del hp
+		#store kw in a container
+		args = Container(kw, delonget = True)
 
-		if ra != None:
-			#by convention, parabolic orbits have an ra of -inf
+		#set name, incl, omega
+		try:
+			self.name = args.name
+		except AttributeError:
+			self.name = None
+
+		try:
+			self.incl = args.incl
+		except AttributeError:
+			self.incl = 0
+
+		try:
+			self.omega = args.omega
+		except AttributeError:
+			self.omega = 0
+
+		def onlyoneof(*vals):
+			givenvals = args.vallist(*vals)
+			if len(givenvals) > 1:
+				raise Exception("Only one of " + liststr(vals) + " may be specified, but " + liststr(givenvals) + " were")
+
+		#for each group, convert to the first element
+		#stores the successfully converted params
+		params = {}
+
+		#rp group
+		onlyoneof("rp", "hp")
+
+		try:
+			args.rp = args.hp * 1000 + body.radius
+		except AttributeError:
+			pass
+
+		try:
+			rp = args.rp
+			if not rp > 0:
+				raise Exception("rp must be > 0, but is " + diststr(rp))
+			params["rp"] = diststr(rp)
+		except AttributeError:
+			rp = None
+
+		#ra group
+		onlyoneof("ra", "ha")
+
+		try:
+			args.ra = args.ha * 1000 + body.radius
+		except AttributeError:
+			pass
+
+		try:
+			ra = args.ra
 			if ra == +inf:
 				ra = -inf
+			params["ra"] = diststr(ra)
+		except AttributeError:
+			ra = None
 
-		if ra != None and rp != None and a != None:
-			raise Exception("rp, ra, a can not be stated together")
+		#a group
+		onlyoneof("a", "vr", "vh", "vinf", "T", "espec")
 
-		if ra != None and rp != None:
-			if ra > 0 and rp > ra:
-				#swap ra and rp
-				ra, rp = rp, ra
+		try:
+			v, h = args.vh
+			args.vr = v, h * 1000 + body.radius
+		except AttributeError:
+			pass
 
-		#ra and rp have been processed; combine with a
-		if ra != None and a != None:
-			rp = 2 * a - ra
+		try:
+			args.vr = args.vinf, inf
+		except AttributeError:
+			pass
+
+		try:
+			v, r = args.vr
+			args.espec = v * v / 2 - body.mu() / r
+		except AttributeError:
+			pass
+
+		try:
+			args.espec = ((args.T/(2 * pi))**2 * body.mu()) ** (1/3)
+		except AttributeError:
+			pass
+
+		try:
+			args.a = -body.mu() / (2 * args.espec)
+		except AttributeError:
+			pass
+
+		try:
+			a = args.a
+			if a == +inf:
+				a = -inf
+			if a == 0:
+				raise Exception("a must be != 0, but is 0")
+			params["a"] = diststr(a)
+		except AttributeError:
 			a = None
-			if ra == -inf:
-				raise Exception("rp must be specified for parabolic orbits")
 
-		if rp != None and a != None:
-			ra = 2 * a - rp
-			a = None
-			if ra == +inf:
-				ra = -inf
-
-		if rp != None and rp < 0:
-			raise Exception("rp must be >= 0, but is " + diststr(rp))
-
-		#ra, rp and a have been processed; combine with e
-		if ra != None and rp != None and e != None:
-			raise Exception("rp, ra, e can not be stated together")
-
-		if rp != None and e != None:
+		#e group
+		try:
+			e = args.e
 			if e < 0:
-				raise Exception("e must be >= 0")
-			if e == 1:
-				ra = -inf
-			else:
-				ra = rp * (1 + e) / (1 - e)
-			e = None
-		
-		if ra != None and e != None:
-			if e < 0:
-				raise Exception("e must be >= 0")
-			rp = ra * (1 - e) / (1 + e)
-			if ra == -inf or e == 1:
-				raise Exception("rp must be specified for parabolic orbits")
+				raise Exception("e must be >= 0, but is " + str(e))
+			params["e"] = str(e)
+		except AttributeError:
 			e = None
 
-		if a != None and e != None:
-			if e < 0:
-				raise Exception("e must be >= 0")
-			if ra != None or rp != None:
-				raise Exception("only two of a, e, ra, rp can be specified")
-			if e == 1 or abs(a) == inf:
-				raise Exception("rp must be specified for parabolic orbits")
+		#vp group
+		try:
+			vp = args.vp
+			if vp < 0:
+				raise Exception("vp must be >= 0, but is " + velstr(vp))
+			params["vp"] = velstr(vp)
+			params.append("vp")
+		except AttributeError:
+			vp = None
 
-			rp = (1 - e) * a
-			ra = 2 * a - rp
-			e = None
-			a = None
-		
-		#ra, rp, e, a have been processed; combine with vinf/vr/vh
-		if vr != None and vh != None:
-			raise Exception("only one of vh/vr may be specified")
+		#va group
+		try:
+			va = args.va
+			if va < 0:
+				raise Exception("va must be >= 0, but is " + velstr(va))
+			params["va"] = velstr(va)
+		except AttributeError:
+			va = None
 
-		if vh != None:
-			v, h = vh
-			vr = (v, 1000 * h + body.radius)
-			del v, h
-			vh = None
+		#check whether exactly two are defined
+		if len(params) != 2:
+			raise Exception("Exactly 2 orbit dimension parameters must be given, but the following are: " + str(params))
 
-		if vr != None and vinf != None:
-			raise Exception("only one of vh/vr/vinf may be specified")
-		
-		if vr != None:
-			v, r = vr
-			vinf = sqrt(v * v - 2 * body.mu()/r)
-			del v, r
-			vr = None
+		#check whether there are any unused args
+		if len(args) != 0:
+			raise Exception("Unknown arguments: " + liststr(args.vallist()))
 
-		if rp != None and vinf != None:
-			if ra != None:
-				raise Exception("only two of vinf, a, e, ra, rp can be specified")
-			if vinf < 0:
-				raise Exception("vinf must be >= 0")
-			elif vinf == 0:
-				ra = -inf
-			else:
-				a = -body.mu() / (vinf * vinf)
+		def orbitdims(rp = None, ra = None, a = None, e = None, vp = None, va = None):
+			"""
+			calculate rp, ra from the parameters rp, ra, a, e, vp, va,
+			and return them as a tuple (rp, ra)
+			"""
+			if rp != None and ra != None:
+				#if the user confused ra and rp, correct that
+				if ra > 0 and rp > ra:
+					ra, rp = rp, ra
+				return rp, ra
+
+			if rp != None and a != None:
 				ra = 2 * a - rp
-				a = None
-			vinf = None
+				if ra == +inf:
+					ra = -inf
+				return rp, ra
 
-		if ra != None and vinf != None:
-			#TODO
-			raise Exception("Not implemented: calculation of orbital elements from (ra, vinf)")
+			if rp != None and e != None:
+				if e == 1:
+					ra = -inf
+				else:
+					ra = rp * (1 + e) / (1 - e)
+				return rp, ra
 
-		if a != None and vinf != None:
-			#TODO
-			raise Exception("Not implemented: calculation of orbital elements from (a, vinf)")
+			if rp != None and vp != None:
+				espec = vp * vp / 2 - body.mu() / rp
+				a = -body.mu() / (2 * args.espec)
+				return orbitdims(rp = rp, a = a)
 
-		if e != None and vinf != None:
-			#TODO
-			raise Exception("Not implemented: calculation of orbital elements from (e, vinf)")
+			if rp != None and va != None:
+				#TODO
+				raise Exception("Not implemented: orbitdims(rp, va)")
 
-		#all parameters have been processed; check whether we were successful
-		if ra == None or rp == None:
-			raise Exception("Not enough data to calculate orbital elements")
+			if ra != None and a != None:
+				if ra > 0 and a < 0:
+					raise Exception("if ra > 0, a can not be < 0")
+				if ra < 0 and a > 0:
+					raise Exception("if ra < 0, a can not be > 0")
+				if ra == -inf:
+					raise Exception("rp must be known for parabolic orbits")
+				rp = 2 * a - ra
+				return rp, ra
 
-		self.ra = ra
-		self.rp = rp
+			if ra != None and e != None:
+				if ra == -inf or e == 1:
+					raise Exception("rp must be known for parabolic orbits")
+				rp = ra * (1 - e) / (1 + e)
+				return rp, ra
+
+			if ra != None and vp != None:
+				#TODO
+				raise Exception("Not implemented: orbitdims(ra, vp)")
+
+			if ra != None and va != None:
+				espec = va * va / 2 - body.mu() / ap
+				a = -body.mu() / (2 * args.espec)
+				return orbitdims(ra = ra, a = a)
+
+			if a != None and e != None:
+				if a == -inf or e == 1:
+					raise Exception("rp must be known for parabolic orbits")
+
+				rp = (1 - e) * a
+				ra = 2 * a - rp
+
+			if a != None and vp != None:
+				#TODO
+				raise Exception("Not implemented: orbitdims(a, vp)")
+
+			if a != None and va != None:
+				#TODO
+				raise Exception("Not implemented: orbitdims(a, va)")
+
+			if vp != None and va != None:
+				#TODO
+				raise Exception("Not implemented: orbitdims(vp, va)")
+
+		self.rp, self.ra = orbitdims(rp, ra, a, e, vp, va)
 		body.system.addorb(self)
 
 	def __repr__(self):
@@ -180,60 +313,56 @@ class Orbit:
 			rep += ", omega = %.2f deg" % self.omega
 
 		return rep
-		
+
 
 	def e(self):
 		"""
-		returns         eccentricity
+		returns
+			eccentricity
 		"""
 		return (1 - self.rp/self.ra) / (1 + self.rp/self.ra)
 
 	def a(self):
 		"""
-		returns         semi-major axis (m)
+		returns
+			semi-major axis (m)
 		"""
 		return (self.ra + self.rp)/2
 
 	def specenergy(self):
 		"""
-		returns         specific energy of the orbit (J/kg)
+		returns
+			specific energy (J/kg)
 		"""
 		return -0.5 * self.body.mu() / self.a()
 
 	def period(self):
 		"""
-		returns         orbital period (s)
+		returns
+			orbital period (s)
 		"""
 		return 2 * pi * sqrt((self.a() ** 3) / self.body.mu())
 
 	def v(self, r):
 		"""
-		r               height over center of mass (m)
-		returns         v (m/s)
+		r
+			height over center of mass (m)
+		returns
+			v (m/s)
 		"""
 		return sqrt(self.body.mu() * (2/r - 1/self.a()))
 
 	def vp(self):
 		"""
-		returns         periapsis velocity (m/s)
+		returns
+			periapsis velocity (m/s)
 		"""
 		return self.v(self.rp)
 
 	def va(self):
 		"""
-		returns         apoapsis velocity (m/s)
-		"""
-		return self.v(self.ap)
-
-	def vp(self):
-		"""
-		returns         periapsis velocity (m/s)
-		"""
-		return self.v(self.rp)
-
-	def va(self):
-		"""
-		returns         apoapsis velocity or velocity at infinity (m/s)
+		returns
+			apoapsis velocity or velocity at infinity (m/s)
 		"""
 		if self.ra < 0:
 			#escape orbit
@@ -243,10 +372,12 @@ class Orbit:
 
 	def chrp(self, rpnew):
 		"""
-		rpnew           target periapsis height over center of mass (m)
-		returns         apoapsis burn dv
+		rpnew
+			target periapsis height over center of mass (m)
+		returns
+			apoapsis burn dv
 		"""
-		if self.ra < 0: 
+		if self.ra < 0:
 			raise Exception("Can not optimally lower periapsis while on escape trajectory")
 		if rpnew > self.ra:
 			raise Exception("Can not raise periapsis over apoapsis")
@@ -255,8 +386,10 @@ class Orbit:
 
 	def chra(self, ranew):
 		"""
-		ranew           target apoapsis height over center of mass (m)
-		returns         apoapsis burn dv
+		ranew
+			target apoapsis height over center of mass (m)
+		returns
+			periapsis burn dv
 		"""
 		if ranew > 0 and ranew < self.rp:
 			raise Exception("Can not lower apoapsis below periapsis")
@@ -265,44 +398,52 @@ class Orbit:
 
 	def chhp(self, hpnew):
 		"""
-		hpnew 	        target periapsis height over surface (km)
-		returns         apoapsis burn dv (m/s)
+		hpnew
+			target periapsis height over surface (km)
+		returns
+			apoapsis burn dv (m/s)
 		"""
 		rpnew = 1000 * hpnew + self.body.radius
 		return self.chrp(rpnew)
 
 	def chha(self, hanew):
 		"""
-		hanew           target apoapsis height over surface (km)
-		returns         periapsis burn dv
+		hanew
+			target apoapsis height over surface (km)
+		returns
+			periapsis burn dv
 		"""
 		ranew = 1000 * hanew + self.body.radius
 		return self.chra(ranew)
 
 	def deorbit(self):
 		"""
-		returns         apoapsis dv to de-orbit
+		returns
+			apoapsis dv to de-orbit
 		"""
-		return self.chrp(self.body.minorbitr())
+		return self.chrp(self.body.atm.cutoff)
 
 	def escape(self):
 		"""
-		returns         periapsis dv to escape
+		returns
+			periapsis dv to escape
 		"""
 		return self.chra(inf)
 
 	def circ(self):
 		"""
-		returns		periapsis dv to make orbit circular
+		returns
+			apoapsis dv to make orbit circular
 		"""
 		return self.chrp(self.ra)
 
 	def chir(self, r, inclnew):
 		"""
-		r               height over center of orbit (m) at which the inclination change is performed
-		inclnew         new inclination (deg)
-		"""
+		r
+			height over center of orbit (m) at which the inclination change is performed
 		inclnew
+			new inclination (deg)
+		"""
 		if r < self.rp or (self.ra > 0 and r > self.ra):
 			raise Exception("Orbit does not reach this height")
 
@@ -312,34 +453,52 @@ class Orbit:
 
 	def chih(self, h, inclnew):
 		"""
-		h               height over surface (km) where the inclination change is performed
-		inclnew         new inclination (deg)
+		h
+			height over surface (km) where the inclination change is performed
+		inclnew
+			new inclination (deg)
 		"""
 		r = h * 1000 + self.body.radius
 		return self.chir(r, inclnew)
 
 	def thetafromr(self, r):
 		"""
-		r               height over center of mass (m)
-		returns         angle in orbit (degrees, 0: periapsis)
+		r
+			height over center of mass (m)
+		returns
+			angle in orbit (degrees, 0: periapsis)
 		"""
-		return degrees(acos((self.rp * ( 1 + self.e() ) / r - 1) / self.e()))
+		e = self.e()
+		if e == 0:
+			#for circular orbits, theta does not matter
+			theta = 0
+		else:
+			theta = degrees(acos((self.rp * ( 1 + e ) / r - 1) / e))
+
+		return theta
 
 	def rfromtheta(self, theta):
 		"""
-		theta           angle in orbit (degrees, 0: periapsis)
-		returns         height over center of mass at that point (m)
+		theta
+			angle in orbit (degrees, 0: periapsis)
+		returns
+			height over center of mass at that point (m)
 		"""
-		return self.rp * (1 + self.e()) / (1 + self.e() * cos(radians(theta)))
+		e = self.e()
+		r = self.rp * (1 + e) / (1 + e * cos(radians(theta)))
+		return r
 
 	def rvector(self, r):
 		"""
-		r               height above center of mass (m)
-		theta           angle in orbit (degrees; 0 means periapsis)
-		returns         velocity vector in IRF
-				z points north
-				y points towards ascending node
-				x spans the equatorial plane with y
+		r
+			height above center of mass (m)
+		theta
+			angle in orbit (degrees; 0 means periapsis)
+		returns
+			velocity vector in IRF
+			z points north
+			y points towards ascending node
+			x spans the equatorial plane with y
 		"""
 		theta = self.thetafromr(r)
 		#first, calculate without inclination
@@ -352,11 +511,13 @@ class Orbit:
 
 	def vvector(self, r):
 		"""
-		r               height above center of mass (m)
-		returns         velocity vector in IRF
-				z points north
-				y points towards ascending node
-				x spans the equatorial plane with y
+		r
+			height above center of mass (m)
+		returns
+			velocity vector in IRF
+			z points north
+			y points towards ascending node
+			x spans the equatorial plane with y
 		"""
 		theta = self.thetafromr(r)
 		#first, ignore the inclination; thus z = 0
@@ -366,14 +527,16 @@ class Orbit:
 		vy, vz = -cos(radians(self.incl)) * vy, sin(radians(self.incl)) * vy
 
 		return vec.scalarprod(vec.unity((vx, vy, vz)), self.v(r))
-	
+
 	def aerobrake(self, d = 0.2, timestep = 0.001):
 		"""
 		numerically simulates aerobrake/aerocapture
 		orbit must partially lie within the atmosphere for this to work
 
-		d               drag coefficient
-		timestep        time per physics frame (s)
+		d
+			drag coefficient
+		timestep
+			time per physics frame (s)
 		"""
 		entryr = self.body.atm.cutoff + self.body.radius
 		collisionr = self.body.maxelev + self.body.radius
@@ -400,11 +563,11 @@ class Orbit:
 			r = vec.abs(vr)
 			if r < collisionr:
 				print("Within ground collision range")
-			if r < 0:
+			if r < self.body.radius:
 				break
-#			if r > entryr * 1.01:
-#				print("Atmosphere left")
-#				break
+			if r > entryr * 1.01:
+				print("Atmosphere left")
+				#break
 
 			vvatm = self.body.rotvvector(vr)
 			vvdelta = vec.diff(vv, vvatm)
@@ -418,13 +581,12 @@ class Orbit:
 			vv = vec.sum(vdv, vv)
 			vr = vec.sum(vdr, vr)
 
-			print("h: " + diststr(r - self.body.radius) + ", agrav: " + str(agrav) + ", aatm: " + str(aatm) + ", v: " + str(vec.abs(vvdelta)))
-			
+			print("h: " + diststr(r - self.body.radius) + ", agrav: " + str(agrav) + ", aatm: " + str(aatm) + ", v: " + str(vec.abs(vvdelta)) + ", espec: " + str(vec.abs(vv)**2 - self.body.mu()/r))
+
 		print("Exit position: " + vec.tostr(vr, diststr))
 		print("Exit velocity: " + vec.tostr(vv, velstr))
 
 		#TODO calculate orbital elements fro vv, vr
-		#TODO debug - enormous values of d are required to slow us down at all
-		#orbit does not even sink to its periapsis
+		#TODO orbit does not even sink to its periapsis
 		#even worse, it _rises above its apoapsis_
 		#must be an error with the rvvector() and vvector() equations...
