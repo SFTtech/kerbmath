@@ -1,21 +1,23 @@
+from math import *
 inf = float("+inf")
+nan = float("NaN")
 
 def colprint(msg, col):
 	"""
-	msg:          any string (or even non-string)
-	col:          the ANSI color code, excluding the starting \\e[ and the finalizing m
+	msg           any string (or even non-string)
+	col           the ANSI color code, excluding the starting \\e[ and the finalizing m
 		      in the simplest case, an integer such as 32 for green.
 	"""
 	print("\x1b[" + str(col) + "m" + str(msg) + "\x1b[m")
 
 def diststr(dist):
 	"""
-	dist:         distance (m)
-	returns:      an appropriate string. in a wide range, km will be used as unit 
+	dist          distance (m)
+	returns       an appropriate string. in a wide range, km will be used as unit 
 	"""
 	if dist < 0:
 		return "-" + diststr(-dist)
-	elif dist == float("NaN"):
+	elif dist == nan:
 		return "NaN"
 	elif dist == inf:
 		return "inf"
@@ -36,11 +38,33 @@ def diststr(dist):
 	else:
 		return "%.0fGM" % (dist / 1e9)
 
+def velstr(vel):
+	"""
+	vel          velocity (m/s)
+	returns      appropriate string.
+	"""
+	if vel < 0:
+		return "-" + velstr(-vel)
+	elif vel == nan:
+		return "NaN"
+	elif vel == inf:
+		return "inf"
+	elif vel < 1:
+		return "%.0fmm/s" % (vel / 1e-3)
+	elif vel < 100:
+		return "%.3fm/s"  % (vel / 1)
+	elif vel < 10000:
+		return "%.1fm/s"  % (vel / 1)
+	elif vel < 1000e3:
+		return "%.1fkm/s" % (vel / 1e3)
+	else:
+		return "%.0fkm/s" % (vel / 1e3)
+
 def interact(globs, banner = None):
 	"""
 	launch a interactive python console
 
-	globs      the global variable dict
+	globs        the global variable dict
 	
 	"""
 

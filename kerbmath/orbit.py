@@ -1,5 +1,6 @@
 from math import *
 from kerbmath.util import *
+import kerbmath.vector as vec
 
 class Orbit:
 	def __init__(self, body, hp = None, ha = None, incl = 0, omega = 0, ra = None, rp = None, a = None, e = None, vr = None, vh = None, vinf = None, name = None):
@@ -166,7 +167,7 @@ class Orbit:
 		#trajectory dimensions
 		if self.ra < 0:
 			#escape trajectory
-			rep += " escape trajectory, " + diststr(self.rp - self.body.radius) + "/vinf=" + str(self.v(inf)) + "m/s"
+			rep += " escape trajectory, " + diststr(self.rp - self.body.radius) + "/vinf=" + velstr(self.v(inf))
 		else:
 			#orbit
 			rep += " orbit, " + diststr(self.rp - self.body.radius) + "/" + diststr(self.ra - self.body.radius)
@@ -363,21 +364,16 @@ class Orbit:
 		vy = sin(radians(theta + self.omega)) + self.e() * cos(radians(self.omega))
 		#the inclination decides how vy is distributed among vy and vz
 		vy, vz = -cos(radians(self.incl)) * vy, sin(radians(self.incl)) * vy
-		#scale to correct length
-		scalefactor = self.v(r) / sqrt(vx * vx + vy * vy + vz * vz)
-		vz *= scalefactor
-		vy *= scalefactor
-		vx *= scalefactor
-		#done
-		return vx, vy, vz
+
+		return vec.scalarprod(vec.unity((vx, vy, vz)), self.v(r))
 	
-	def aerobrake(self, d = 0.2, timesteps = 0.001):
+	def aerobrake(self, d = 0.2, timestep = 0.001):
 		"""
 		numerically simulates aerobrake/aerocapture
 		orbit must partially lie within the atmosphere for this to work
 
 		d               drag coefficient
-		timesteps       time per physics frame (s)
+		timestep        time per physics frame (s)
 		"""
 		entryr = self.body.atm.cutoff + self.body.radius
 		collisionr = self.body.maxelev + self.body.radius
@@ -393,7 +389,42 @@ class Orbit:
 		# y points towards ascending node (of the old orbit)
 		# x spans the equatorial plane with y
 
-		ventry = self.vvector(entryr)
-		rentry = self.rvector(entryr)
+		vr = self.rvector(entryr)
+		vv = self.vvector(entryr)
 
-		print("Entry velocity: " + str(ventry) + ", entry radius: " + str(rentry))
+		print("Entry position: " + vec.tostr(vr, diststr))
+		print("Entry velocity: " + vec.tostr(vv, velstr))
+
+		#run simulation
+		while True:
+			r = vec.abs(vr)
+			if r < collisionr:
+				print("Within ground collision range")
+			if r < 0:
+				break
+#			if r > entryr * 1.01:
+#				print("Atmosphere left")
+#				break
+
+			vvatm = self.body.rotvvector(vr)
+			vvdelta = vec.diff(vv, vvatm)
+			aatm = self.body.atm.accel(r - self.body.radius, vec.abs(vvdelta), d)
+			vaatm = vec.scalarprod(vec.unity(vvdelta), -aatm)
+			agrav = self.body.accel(r)
+			vagrav = vec.scalarprod(vec.unity(vr), -agrav)
+			vatot = vec.sum(vaatm, vagrav)
+			vdv = vec.scalarprod(vatot, timestep)
+			vdr = vec.scalarprod(vv, timestep)
+			vv = vec.sum(vdv, vv)
+			vr = vec.sum(vdr, vr)
+
+			print("h: " + diststr(r - self.body.radius) + ", agrav: " + str(agrav) + ", aatm: " + str(aatm) + ", v: " + str(vec.abs(vvdelta)))
+			
+		print("Exit position: " + vec.tostr(vr, diststr))
+		print("Exit velocity: " + vec.tostr(vv, velstr))
+
+		#TODO calculate orbital elements fro vv, vr
+		#TODO debug - enormous values of d are required to slow us down at all
+		#orbit does not even sink to its periapsis
+		#even worse, it _rises above its apoapsis_
+		#must be an error with the rvvector() and vvector() equations...

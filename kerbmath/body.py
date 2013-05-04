@@ -62,11 +62,44 @@ class Body:
 		"""
 		return self.radius + max(self.atm.cutoff, self.maxelev)
 
-	def minorbit(self):
+	def minorbit(self, incl = 0, omega = 0):
 		"""
-		returns         lowest stable orbit object, with an inclination of 0 deg
+		creates the lowest stable orbit
 		"""
-		return self.orb(ra = self.minorbitr(), rp = self.minorbitr(), name = "lowest" + self.name)
+		self.orb(ra = self.minorbitr(), rp = self.minorbitr(), name = "min" + self.name, incl = incl, omega = omega)
+
+	def rotvvector(self, rvector):
+		"""
+		returns the velocity vector of rotation at a certain position
+		rvector       position vector in IRF
+		returns       velocity vector in IRF
+
+		x and y span the equatorial plane (arbitrary orientation)
+		z is the axis of rotation
+		"""
+		#calculate absolute value of r
+		rx, ry, rz = rvector
+		r = sqrt(rx * rx + ry * ry + rz * rz)
+		#length of radius projected on equator
+		req = sqrt(rx * rx + ry * ry)
+		#angle of radius against equator
+		alpha = atan2(rz, req)
+		#radius of rotation circle
+		rrot = r * cos(alpha)
+		#velocity of rotation
+		vrot = rrot * 2 * pi / self.rotperiod
+		#obviously, the rotation circle is centered around the z axis
+		vz = 0
+		#the velocity vector is 90 degrees ahead of the radius vector on the equatorial plane
+		#hence, the velocity direction vector is given by
+		vx = ry
+		vy = -rx
+		#and finally, scaled
+		vx *= vrot / req
+		vy *= vrot / req
+
+		return vx, vy, vz
+		
 
 	def orb(self, hp = None, ha = None, **kw):
 		"""
