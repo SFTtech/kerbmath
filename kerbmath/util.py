@@ -31,3 +31,49 @@ def diststr(dist):
 		return "%.1fGM" % (dist / 1e9)
 	else:
 		return "%.0fGM" % (dist / 1e9)
+
+def interact(globs, banner = None):
+	"""
+	launch a interactive python console
+
+	globs      the global variable dict
+	
+	"""
+
+	#try to read the user's .pyrc file
+	try:
+		import os
+		exec(open(os.environ["PYTHONSTARTUP"]).read(), globs)
+	except:
+		pass
+
+	def printdocstrings(obj):
+		import inspect
+		doc = inspect.getdoc(obj)
+		if doc == None:
+			print("No documentation available")
+		else:
+			print(doc)
+
+	globs["printdocstrings"] = printdocstrings
+
+	#activate tab completion
+	import rlcompleter, readline, code
+	readline.parse_and_bind("tab: complete")
+	readline.set_completer(rlcompleter.Completer(globs).complete)
+
+	class HelpfulInteractiveConsole(code.InteractiveConsole):
+		""""
+		Wrapper that will detect trailing '?' characters and try to print docstrings
+		"""
+		def runsource(self, source, filename="<input>", symbol="single"):
+			if len(source) > 1 and source[-1:] == '?':
+				#try to display help stuff
+				super().runsource("printdocstrings(" + source[:-1] + ")", filename, symbol)
+				return False
+			else:
+				#simply call the super method
+				return super().runsource(source, filename, symbol)
+
+	#launch session
+	HelpfulInteractiveConsole(globs).interact(banner)

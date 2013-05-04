@@ -4,19 +4,6 @@ from kerbmath.system import System
 sys = System()
 sys.readconf("kerbol.cfg")
 
-#try to read the user's .pyrc file
-try:
-	import os
-	exec(open(os.environ["PYTHONSTARTUP"]).read(), sys.__dict__)
-except:
-	pass
-
-#activate tab completion
-import rlcompleter
-import readline
-readline.parse_and_bind("tab: complete")
-readline.set_completer(rlcompleter.Completer(sys.__dict__).complete)
-
 #launch session
-import code
-code.InteractiveConsole(sys.__dict__).interact()
+from kerbmath.util import interact
+interact(sys.__dict__, "Kerbmath Interactive Shell (c) 2013 by Michael Ensslin <michael@ensslin.cc>")

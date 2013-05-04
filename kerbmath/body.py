@@ -66,61 +66,15 @@ class Body:
 		"""
 		returns         lowest stable orbit object, with an inclination of 0 deg
 		"""
-		return self.orbr(self.minorbitr(), self.minorbitr(), 0, name = "lowest" + self.name)
+		return self.orb(ra = self.minorbitr(), rp = self.minorbitr(), name = "lowest" + self.name)
 
-	def orbrr(self, ra, rp, incl = 0):
+	def orb(self, hp = None, ha = None, **kw):
 		"""
-		creates an orbit object
+		creates an orbit around this object
 
-		ra              height of apogee over center of mass (m)
-		rp              height of perigee over center of mass (m)
-		incl            inclination against equatorial plane (deg)
+		see the documentation for the Orbit() constructor for valid parameters
 		"""
-		Orbit(self, ra, rp, incl)
-
-	def orbhh(self, ha, hp, incl = 0):
-		"""
-		creates an orbit object
-		
-		ha              height of apogee over surface (km)
-		hp              height of perigee over surface (km)
-		incl            inclination against equatorial plane (deg)
-		"""
-		rp = 1000 * hp + self.radius
-		ra = 1000 * ha + self.radius
-		self.orbrr(ra, rp, incl)
-
-	def orbae(self, a, e, incl = 0):
-		"""
-		creates an Orbit object
-
-		a               semi-major axis (m)
-		e               eccentricity
-		incl		inclination against equatorial plane (deg)
-		"""
-		rp = (1 - e) * a
-		ra = 2 * a - rp
-		self.orbrr(ra, rp, incl)
-
-	def escorbr(self, rp, vinf = 0, incl = 0):
-		"""
-		creates an orbit object
-
-		hp              height of perigee over center of mass (m)
-		vinf            velocity at infinity (m/s)
-		incl            inclination against equatorial plane (deg)
-		"""
-		a = -self.mu()/(vinf * vinf)
-		ra = 2 * a - rp
-		self.orbrr(ra, rp, incl)
-
-	def escorbh(self, hp, vinf = 0, incl = 0):
-		"""
-		creates an orbit object
-
-		hp              height of perigee over surface (km)
-		vinf            velocity at infinity
-		incl            inclination against equatorial plane (deg)
-		"""
-		rp = 1000 * hp + self.radius
-		self.escorbr(hp, vinf, incl)
+		body = self
+		del self
+		kw.update(locals())
+		Orbit(**kw)

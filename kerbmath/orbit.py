@@ -2,25 +2,136 @@ from math import *
 from kerbmath.util import *
 
 class Orbit:
-	def __init__(self, body, ra, rp, incl = 0, name = None):
+	#new (to-be) constructor
+	def __init__(self, body, hp = None, ha = None, incl = 0, omega = 0, ra = None, rp = None, a = None, e = None, vinf = None):
 		"""
-		Note that the Body objects provide much more convenient member functions for orbits around them
+		body            central body of the orbit
+		hp              height of periapsis above surface (km)
+		ha              height of apoapsis above surface (km)
+		incl            inclination: angle between orbital plane and equatorial plane of body (deg)
+		omega           argument of perigee: angle between perigee and ascending node (deg)
+		ra              radius of apoapsis (m)
+		rp              radius of periapsis (m)
+		a               semi-major axis (m)
+		e               eccentricity
+		vinf            velocity at infinity (m/s, for escape orbits)
 
-		body            central body
-		ha              height of apogee (m)
-		hp              height of perigee (m)
-		incl            inclination against equatorial plane (rads)
+		incl and omega may always be specified 
+		almost any two of rp/hp, ra/ha, a, e, vinf may be specified (unimplemented combinations will raise exceptions)
 		"""
-		if rp < 0:
-			raise Exception("periapsis height must be >= 0")
-		elif ra == +inf:
-			#arbitrary convention: we use -inf for parabolic orbits
-			ra = -inf
-		elif ra < rp:
-			raise Exception("apoapsis height must be >= periapsis height")
+		#set body
+		self.body = body
+		#take over incl and omega
+		self.incl = incl
+		self.omega = omega
 
-		self.__dict__.update(locals())
+		#normalize and check the hp/ha/rp/ra parameters
+		if hp != None and rp != None:
+			raise Exception("hp and rp are mutually exclusive")
+		if ha != None and ra != None:
+			raise Exception("ha and ra are mutually exclusive")
+		if ha != None:
+			ra = ha * 1000 + body.radius
+		if hp != None:
+			rp = hp * 1000 + body.radius
+		del ha
+		del hp
 
+		if ra != None:
+			#by convention, parabolic orbits have an ra of -inf
+			if ra == +inf:
+				ra = -inf
+
+		if ra != None and rp != None and a != None:
+			raise Exception("rp, ra, a can not be stated together")
+
+		if ra != None and rp != None:
+			if ra > 0 and rp > ra:
+				#swap ra and rp
+				ra, rp = rp, ra
+
+		#ra and rp have been processed; combine with a
+		if ra != None and a != None:
+			rp = 2 * a - ra
+			a = None
+			if ra == -inf:
+				raise Exception("rp must be specified for parabolic orbits")
+
+		if rp != None and a != None:
+			ra = 2 * a - rp
+			a = None
+			if ra == +inf:
+				ra = -inf
+
+		if rp != None and rp < 0:
+			raise Exception("rp must be >= 0, but is " + diststr(rp))
+
+		#ra, rp and a have been processed; combine with e
+		if ra != None and rp != None and e != None:
+			raise Exception("rp, ra, e can not be stated together")
+
+		if rp != None and e != None:
+			if e < 0:
+				raise Exception("e must be >= 0")
+			if e == 1:
+				ra = -inf
+			else:
+				ra = rp * (1 + e) / (1 - e)
+			e = None
+		
+		if ra != None and e != None:
+			if e < 0:
+				raise Exception("e must be >= 0")
+			rp = ra * (1 - e) / (1 + e)
+			if ra == -inf or e == 1:
+				raise Exception("rp must be specified for parabolic orbits")
+			e = None
+
+		if a != None and e != None:
+			if e < 0:
+				raise Exception("e must be >= 0")
+			if ra != None or rp != None:
+				raise Exception("only two of a, e, ra, rp can be specified")
+			if e == 1 or abs(a) == inf:
+				raise Exception("rp must be specified for parabolic orbits")
+
+			rp = (1 - e) * a
+			ra = 2 * a - rp
+			e = None
+			a = None
+		
+		#ra, rp, e, a have been processed; combine with vinf
+		if rp != None and vinf != None:
+			if ra != None:
+				raise Exception("only two of vinf, a, e, ra, rp can be specified")
+			if vinf < 0:
+				raise Exception("vinf must be >= 0")
+			elif vinf == 0:
+				ra = -inf
+			else:
+				a = -body.mu() / (vinf * vinf)
+				ra = 2 * a - rp
+				a = None
+			vinf = None
+
+		if ra != None and vinf != None:
+			#TODO
+			raise Exception("Not implemented: calculation of orbital elements from (ra, vinf)")
+
+		if a != None and vinf != None:
+			#TODO
+			raise Exception("Not implemented: calculation of orbital elements from (a, vinf)")
+
+		if e != None and vinf != None:
+			#TODO
+			raise Exception("Not implemented: calculation of orbital elements from (e, vinf)")
+
+		#all parameters have been processed; check whether we were successful
+		if self.ra == None or self.rp == None:
+			raise Exception("Not enough data to calculate orbital elements")
+
+		self.ra = ra
+		self.rp = rp
 		body.system.addorb(self)
 
 	def __repr__(self):
@@ -132,7 +243,7 @@ class Orbit:
 		returns         apoapsis burn dv (m/s)
 		"""
 		rpnew = 1000 * hpnew + self.body.radius
-		chrp(self, rpnew)
+		self.chrp(self, rpnew)
 
 	def chha(self, hanew):
 		"""
@@ -140,7 +251,7 @@ class Orbit:
 		returns         periapsis burn dv
 		"""
 		ranew = 1000 * hanew + self.body.radius
-		chra(self, ranew)
+		self.chra(self, ranew)
 
 	def deorbit(self):
 		"""

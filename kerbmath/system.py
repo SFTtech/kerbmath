@@ -93,3 +93,11 @@ class System:
 			if filterfun == None or filterfun(self.orbits[name]):
 				self.orbits.delete(name)
 				self.__dict__.delete(name)
+
+	def showhelp(self, obj):
+		import inspect
+		doc = inspect.getdoc(obj)
+		if doc == None:
+			print("No documentation available")
+		else:
+			print(doc)
